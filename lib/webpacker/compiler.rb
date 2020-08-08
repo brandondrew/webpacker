@@ -35,7 +35,7 @@ class Webpacker::Compiler
 
   # Returns true if all the compiled packs are up to date with the underlying asset files.
   def fresh?
-    watched_files_digest == last_compilation_digest
+    compilation_digest_path.exist?
   end
 
   # Returns true if the compiled packs are out of date with the underlying asset files.
@@ -46,22 +46,9 @@ class Webpacker::Compiler
   private
     attr_reader :webpacker
 
-    def last_compilation_digest
-      compilation_digest_path.read if compilation_digest_path.exist? && config.public_manifest_path.exist?
-    rescue Errno::ENOENT, Errno::ENOTDIR
-    end
-
-    def watched_files_digest
-      warn "Webpacker::Compiler.watched_paths has been deprecated. Set additional_paths in webpacker.yml instead." unless watched_paths.empty?
-
-      files = Dir[*default_watched_paths, *watched_paths].reject { |f| File.directory?(f) }
-      file_ids = files.sort.map { |f| "#{File.basename(f)}/#{Digest::SHA1.file(f).hexdigest}" }
-      Digest::SHA1.hexdigest(file_ids.join("/"))
-    end
-
     def record_compilation_digest
       config.cache_path.mkpath
-      compilation_digest_path.write(watched_files_digest)
+      compilation_digest_path.write(Time.now.to_i)
     end
 
     def run_webpack
@@ -86,15 +73,6 @@ class Webpacker::Compiler
       end
 
       status.success?
-    end
-
-    def default_watched_paths
-      [
-        *config.additional_paths_globbed,
-        config.source_path_globbed,
-        "yarn.lock", "package.json",
-        "config/webpack/**/*"
-      ].freeze
     end
 
     def compilation_digest_path
